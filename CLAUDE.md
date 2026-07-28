@@ -65,7 +65,9 @@ Date ordering could therefore only have been faked by reordering the documents a
 
 Cross-process limiter (`ratelimit.py`), default **1s**, overridable with `DDB_MIN_REQUEST_INTERVAL`, plus an in-process semaphore limiting concurrency.
 
-DDB publishes no rate limit for the search index, sets no `X-RateLimit-*` headers, and serves no `robots.txt` on the API host. None was observed in testing across ~40 requests including bursts. 1s is chosen as conservative rather than as a measured ceiling — the downside is asymmetric, since exceeding an unpublished limit costs hours while pacing costs seconds.
+DDB publishes no rate limit for the search index, sets no `RateLimit`/`X-RateLimit-*`/`Retry-After` headers, and serves no `robots.txt` on the API host (404). None was observed across roughly eighty requests including a deliberate burst.
+
+**1s is a conservative choice, not a measured ceiling.** Nothing here establishes where the real limit is — only that ordinary use does not approach it. The downside is asymmetric: exceeding an unpublished limit costs hours of access, while pacing costs seconds.
 
 ## Caching
 
@@ -84,4 +86,4 @@ The cache must not depend on the working directory: the CLI is installed globall
 - **German stemming is active on the fulltext field**, so a bare term matches its whole stem class and single-term counts are stem counts.
 - **An empty result set is one empty page**, `total_pages: 1`, normalised so callers behave the same here as for any other source.
 - **A search result without an id raises.** Dropping it would shrink the result list while the reported total still counted it — a silent under-report, which is the worst failure mode for a tool whose value rests on exhaustivity.
-- **No API key is needed today**, but that may be an unenforced gate rather than policy. `DDB_API_KEY` is sent when set, so the client keeps working if enforcement is switched on.
+- **No API key is needed today**, but that may be an unenforced gate rather than policy. `DDB_API_KEY` is sent when set, so the client keeps working if enforcement is switched on. Keys are free and carry no affiliation requirement: DDB's documentation states that any registered user can generate one from the *Meine DDB* area of their account, and there is no paid tier. The signup pages are on the Anubis-walled `www` host, so that flow has only been read about, not walked through.

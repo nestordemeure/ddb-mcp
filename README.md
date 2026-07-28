@@ -59,11 +59,13 @@ Add `--json` for machine-readable output.
 
 Downloads are cached in `$XDG_CACHE_HOME/ddb-mcp` (override with `--cache-dir` or `DDB_CACHE_DIR`). The cache location does not depend on the working directory, so the CLI can be run from anywhere.
 
-Requests are paced one per second by default, overridable with `DDB_MIN_REQUEST_INTERVAL`. DDB publishes no rate limit for this endpoint and none was observed in testing.
+Requests are paced one per second by default, overridable with `DDB_MIN_REQUEST_INTERVAL`. DDB publishes no rate limit for this endpoint, sends no rate-limit headers, and serves no `robots.txt` on the API host; none was observed across roughly eighty requests including a deliberate burst. **One second is therefore a conservative choice, not a measured ceiling** — there is no evidence about where the real limit sits, only that ordinary use does not come near it.
 
 ### API key
 
-None is needed: the newspaper search index answers unauthenticated. That may be an unenforced gate rather than deliberate policy, so if you hold a free DDB API key, set `DDB_API_KEY` and the client will send it — the CLI keeps working if enforcement is ever switched on. Keys come from a free self-serve account at [deutsche-digitale-bibliothek.de/user/apikey](https://www.deutsche-digitale-bibliothek.de/user/apikey).
+None is needed: the newspaper search index answers unauthenticated. That may be an unenforced gate rather than deliberate policy, so if you hold a DDB API key, set `DDB_API_KEY` and the client will send it — the CLI keeps working if enforcement is ever switched on.
+
+Getting one is free and needs no institutional affiliation. Per [DDB's own documentation](https://pro.deutsche-digitale-bibliothek.de/daten-nutzen/schnittstellen), *"Alle registrierten Nutzer\*innen der Deutschen Digitalen Bibliothek können sich einen Authentifikationsschlüssel für die Verwendung der APIs erzeugen lassen"* — any registered DDB user can generate a key, from the *Meine DDB* area of their own account. There is no paid tier. Note that the account pages live on the `www` host, which serves an anti-bot challenge to scripted clients but passes a real browser transparently.
 
 ### MCP server
 
