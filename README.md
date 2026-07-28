@@ -65,7 +65,17 @@ Requests are paced one per second by default, overridable with `DDB_MIN_REQUEST_
 
 None is needed: the newspaper search index answers unauthenticated. That may be an unenforced gate rather than deliberate policy, so if you hold a DDB API key, set `DDB_API_KEY` and the client will send it — the CLI keeps working if enforcement is ever switched on.
 
-Getting one is free and needs no institutional affiliation. Per [DDB's own documentation](https://pro.deutsche-digitale-bibliothek.de/daten-nutzen/schnittstellen), *"Alle registrierten Nutzer\*innen der Deutschen Digitalen Bibliothek können sich einen Authentifikationsschlüssel für die Verwendung der APIs erzeugen lassen"* — any registered DDB user can generate a key, from the *Meine DDB* area of their own account. There is no paid tier. Note that the account pages live on the `www` host, which serves an anti-bot challenge to scripted clients but passes a real browser transparently.
+**Where to get one:** <https://www.deutsche-digitale-bibliothek.de/user/apikey> — the key page inside your DDB account. It needs a free DDB account first, registered at <https://www.deutsche-digitale-bibliothek.de/user/register>; once logged in, the key is generated on that page and shown immediately.
+
+It is free and needs no institutional affiliation. Per [DDB's own documentation](https://pro.deutsche-digitale-bibliothek.de/daten-nutzen/schnittstellen), *"Alle registrierten Nutzer\*innen der Deutschen Digitalen Bibliothek können sich einen Authentifikationsschlüssel für die Verwendung der APIs erzeugen lassen"* — any registered DDB user can have a key generated, from the *Meine DDB* area of their own account. There is no paid tier and no approval step.
+
+Then:
+
+```bash
+export DDB_API_KEY=your_key_here
+```
+
+Both links live on the `www` host, which serves an anti-bot challenge to scripted clients but passes a real browser transparently — so open them in a browser, and expect `curl` to get a challenge page instead. The `apikey` URL is DDB's own, taken from the documentation page linked above; the registration path has not been walked through here.
 
 ### MCP server
 

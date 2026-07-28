@@ -88,6 +88,6 @@ Rate-limited to **one request per second** with single concurrency, overridable 
 
 Server-side query time, not rate limiting, is the real cost. Most queries answer in tens of milliseconds; a faceted sweep over the whole corpus takes seconds, and deep `start` offsets get slow. An unbounded range query on the fulltext field times out server-side and comes back as an error carried by HTTP 200 — the client surfaces it rather than reporting zero results.
 
-No API key is required. If one is ever needed, set `DDB_API_KEY` and the client will send it; keys are free and self-serve.
+No API key is required. If one is ever needed, set `DDB_API_KEY` and the client will send it. Keys are free, need no institutional affiliation and have no approval step: register a DDB account, then generate the key at <https://www.deutsche-digitale-bibliothek.de/user/apikey>. Both pages need a real browser — they sit on the anti-bot-walled `www` host.
 
 **Over-querying gets you banned, and the ban outlasts the session.** This is a free public service; a sweep that looks thorough from here looks like scraping from theirs. If requests start failing or returning something that is not what you asked for, stop and say so rather than retrying into a longer ban.
