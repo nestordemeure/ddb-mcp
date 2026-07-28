@@ -1,0 +1,25 @@
+[project]
+name = "ddb-mcp"
+version = "0.1.0"
+description = "MCP server and CLI for the Deutsches Zeitungsportal (Deutsche Digitale Bibliothek)"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    { name = "Nestor Demeure", email = "nestordemeure@gmail.com" }
+]
+dependencies = [
+    "fastmcp>=2.0.0",
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+ddb = "ddb_mcp.cli:main"
+ddb-mcp = "ddb_mcp.server:main"
+ddb-mcp-install = "ddb_mcp.install:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ddb_mcp"]
