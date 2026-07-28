@@ -42,9 +42,17 @@ SUMMARY_FIELDS = (
     "score",
 )
 
-# Result ordering. Only relevance is a real Solr sort here - see `_sort_documents`.
-SORT_ORDERS = ("relevance", "date_asc", "date_desc")
-DEFAULT_SORT = "relevance"
+# Result ordering is relevance, and only relevance.
+#
+# The sibling clients share a `sort` vocabulary of relevance/date_asc/date_desc.
+# This one deliberately does not offer it. `publication_date` is a Solr
+# DateRangeField and the server refuses to sort on it ("Sorting not supported on
+# SpatialField"), so date ordering could only ever be faked by reordering the
+# handful of documents already fetched - which looks like a chronology while
+# being no such thing, since the *selection* would still be by relevance.
+# Offering a flag that quietly means something weaker than its name is worse
+# than not offering it: chronological work here means bounding the query with a
+# date range and sweeping it whole.
 
 # Braces are the house convention for "this is the token that matched", so the
 # highlighter is asked to emit them directly rather than <em> we would strip.
@@ -119,7 +127,6 @@ class DDBClient:
         language: str | None = None,
         provider: str | None = None,
         zdb_id: str | None = None,
-        sort: str = DEFAULT_SORT,
         snippets: int = 3,
         snippet_size: int = 200,
         restrict_to: str | None = None,
@@ -130,16 +137,13 @@ class DDBClient:
         of one issue, which is how `snippets` locates a term inside a document
         already in hand.
 
-        Returns a dict with ``page``, ``total_results``, ``total_pages``,
-        ``documents`` and ``partial_sort``. Each document carries its metadata,
+        Returns a dict with ``page``, ``total_results``, ``total_pages`` and
+        ``documents``. Results come back by relevance; see the note on ordering
+        at the top of this module. Each document carries its metadata,
         a viewer URL, and the highlighted snippets showing where the query
         matched - DDB returns those in the search response itself, so no second
         request is needed to judge a hit.
         """
-        if sort not in SORT_ORDERS:
-            raise ValueError(
-                f"Unknown sort order {sort!r}; expected one of {', '.join(SORT_ORDERS)}"
-            )
         if page < 1:
             raise ValueError(f"Page numbers start at 1; got {page}")
         rows = max(1, min(rows, MAX_ROWS))
@@ -183,19 +187,11 @@ class DDBClient:
         # looping over pages behave the same here as for any other source.
         total_pages = max(1, (total_results + rows - 1) // rows)
 
-        # Date ordering is emulated, so it is only ever true of what was
-        # actually fetched - see `_sort_documents`.
-        partial_sort = False
-        if sort != "relevance":
-            documents = self._sort_documents(documents, sort)
-            partial_sort = total_results > len(documents)
-
         return {
             "page": page,
             "total_results": total_results,
             "total_pages": total_pages,
             "documents": documents,
-            "partial_sort": partial_sort,
         }
 
     async def get_page_text(self, identifier: str, refresh: bool = False) -> str:
@@ -362,23 +358,6 @@ class DDBClient:
             "url": VIEWER_URL.format(item_id=item_id, page=page_number or 1),
             "snippets": [self._clean_snippet(text) for text in highlights],
         }
-
-    @staticmethod
-    def _sort_documents(documents: list[dict[str, Any]], sort: str) -> list[dict[str, Any]]:
-        """Order documents by date, client-side.
-
-        DDB cannot do this: `publication_date` is a DateRangeField, and Solr
-        refuses to sort on it ("Sorting not supported on SpatialField"). The
-        ordering here therefore applies only to the documents actually fetched,
-        which is why `search` reports `partial_sort` whenever more results exist
-        than were retrieved. Chronological work on this source means narrowing
-        with a date range and sweeping it, not asking the server for date order.
-        """
-        return sorted(
-            documents,
-            key=lambda doc: (doc.get("date") or ""),
-            reverse=(sort == "date_desc"),
-        )
 
     async def _get_json(self, params: list[tuple[str, str]]) -> dict[str, Any]:
         """Issue a paced request and return the parsed JSON body."""

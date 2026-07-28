@@ -53,6 +53,8 @@ Add `--json` for machine-readable output.
 
 **Search already includes snippets**, which is the important workflow difference from the sibling clients. DDB returns highlighted excerpts in the search response itself, so judging a hit costs nothing beyond the search that found it. Reach for `get` only when a page or issue is worth reading at length. Use `--no-snippets` when you want a compact listing.
 
+**There is no date ordering, deliberately.** `publication_date` is a Solr `DateRangeField` and the server refuses to sort on it, so results always come back by relevance. Rather than offer a flag that quietly reordered only the handful of results already fetched — a chronology in name while the *selection* stayed relevance-ranked — the client omits it. Chronological work means bounding the query with `--from-year`/`--to-year` and sweeping the range with `--pages all`; the ordering then falls out of the sweep.
+
 **The result total is a true count.** Solr reports `numFoundExact`, and it survives checking: `"Bert Reese"` reports 31 results and returns exactly 31 documents. This is unlike Gallica, whose totals are a ranking depth — here a total can be quoted, and a swept query really has been swept.
 
 Downloads are cached in `$XDG_CACHE_HOME/ddb-mcp` (override with `--cache-dir` or `DDB_CACHE_DIR`). The cache location does not depend on the working directory, so the CLI can be run from anywhere.

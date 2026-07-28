@@ -19,7 +19,7 @@ ddb get <id>                  # download OCR text, prints path to the cached fil
 
 Filters for `search`: `--from-year`, `--to-year`, `--title TEXT` (newspaper title), `--place TEXT`, `--language CODE` (ISO 639-2, `ger`), `--provider TEXT` (holding institution), `--zdb-id ID`.
 
-`--sort` takes `relevance` (default), `date_asc` or `date_desc` — but read the trap about date ordering below before using the last two.
+**There is no `--sort`.** Results come back by relevance; see the trap below.
 
 Identifiers come in two shapes and both commands accept either. A **page id** looks like `QH5LZ372MFWP2SLFKDRQI4FK3BN4O6JI-fulltext_5_DDB_FULLTEXT`; an **issue id** is the part before the hyphen. Give `get` an issue id and it returns every page of that issue in one file, with `=== ... page N ===` markers between them.
 
@@ -76,7 +76,7 @@ Because the totals are real, the judgement is simply whether the number is small
 
 ## Traps specific to this source
 
-- **Date sorting does not exist.** `publication_date` is a Solr `DateRangeField`, and the server refuses to sort on it. `--sort date_asc`/`date_desc` therefore order only the results actually fetched, and the CLI says so when more exist. For genuine chronological work, narrow with `--from-year`/`--to-year` and sweep the range with `--pages all` — the ordering then falls out of the sweep rather than the sort.
+- **There is no date ordering, and this differs from the other sources.** Gallica and ANNO both offer `--sort date_asc`; DDB has no equivalent, because `publication_date` is a Solr `DateRangeField` the server refuses to sort on. Do not look for the flag: it is absent on purpose rather than missing. For chronological work, narrow with `--from-year`/`--to-year` and sweep the range with `--pages all` — the ordering falls out of the sweep. Since totals here are exact, you can tell in advance whether a range is small enough to sweep whole.
 - **The `www` host is walled, the API host is not.** `www.deutsche-digitale-bibliothek.de` serves an Anubis anti-bot challenge to every scripted client, with HTTP 200 rather than an error status. The CLI never touches it. This matters only if you try to fetch a viewer URL directly: those URLs are for the researcher to open in a browser, where they pass transparently, not for fetching.
 - **Snippets rely on a non-default highlighter.** The client sets `hl.method=original` because this Solr's default highlighter returns an *empty* highlight block for every document on a phrase query — a well-formed response with no snippets, which reads as "the terms are not there" rather than as a failure. If snippets ever vanish across the board while results keep arriving, that is the cause, not an absence of matches.
 - **`get` is cheap here, unusually.** A page's whole OCR is a field on the search document, so downloading is one ordinary query rather than a separate guarded endpoint. There is no equivalent of Gallica's expensive, easily-refused `texteBrut`. Still prefer snippets for judging, because reading a whole page costs *context*, not requests.

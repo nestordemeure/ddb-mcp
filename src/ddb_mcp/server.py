@@ -7,10 +7,10 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 try:
-    from .client import DEFAULT_ROWS, DEFAULT_SORT, DDBClient
+    from .client import DEFAULT_ROWS, DDBClient
     from .paths import cache_dir
 except ImportError:  # direct execution
-    from ddb_mcp.client import DEFAULT_ROWS, DEFAULT_SORT, DDBClient
+    from ddb_mcp.client import DEFAULT_ROWS, DDBClient
     from ddb_mcp.paths import cache_dir
 
 mcp = FastMCP("DDB")
@@ -36,7 +36,6 @@ async def search_ddb(
     paper_title: str | None = None,
     place: str | None = None,
     language: str | None = None,
-    sort: str = DEFAULT_SORT,
 ) -> dict:
     """Search German newspaper pages in the Deutsches Zeitungsportal.
 
@@ -59,12 +58,12 @@ async def search_ddb(
         paper_title: Restrict to one newspaper title
         place: Restrict to a place of distribution
         language: Language code, ISO 639-2 (e.g. 'ger')
-        sort: 'relevance' (default), 'date_asc' or 'date_desc'. Date ordering is
-            emulated over the fetched results only - DDB cannot sort by date.
 
     Returns:
         total_results (a true count, not a ranking depth), total_pages, and the
-        matching pages with their metadata, viewer URL and snippets.
+        matching pages with their metadata, viewer URL and snippets. Results are
+        ordered by relevance; DDB cannot order by date, so chronological work
+        means bounding the query with from_year/to_year and sweeping it whole.
     """
     return await get_client().search(
         query=query,
@@ -75,7 +74,6 @@ async def search_ddb(
         paper_title=paper_title,
         place=place,
         language=language,
-        sort=sort,
     )
 
 

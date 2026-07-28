@@ -55,9 +55,11 @@ Page names are not uniform across providers — `fulltext_5_DDB_FULLTEXT`, `ALTO
 
 ## Result Ordering
 
-`sort` accepts `relevance` (default), `date_asc` or `date_desc`, sharing the vocabulary of the sibling clients. Only relevance is a real server-side sort.
+Relevance, and only relevance. **This client deliberately breaks the shared `sort` vocabulary** (`relevance`/`date_asc`/`date_desc`) that the sibling clients offer, and exposes no `sort` parameter at all.
 
-**Date ordering is emulated, and deliberately so.** `publication_date` is a `DateRangeField`; Solr answers `sort=publication_date asc` with `"Sorting not supported on SpatialField: publication_date"`. Range *filtering* against the same field works fine. The client therefore sorts the fetched documents client-side and sets `partial_sort` whenever `total_results` exceeds what was retrieved, which the CLI turns into a warning. The honest way to do chronology on this source is a bounded date range swept with `--pages all`.
+`publication_date` is a Solr `DateRangeField`; the server answers `sort=publication_date asc` with `"Sorting not supported on SpatialField: publication_date"`. Range *filtering* against the same field works fine, so the field is still useful — just not sortable.
+
+Date ordering could therefore only have been faked by reordering the documents already fetched. That was the first implementation, with a `partial_sort` flag and a printed warning, and it was wrong: reordering a relevance-selected page is a chronology in name only, because the *selection* is still by relevance. A flag whose meaning silently degrades is worse than an absent one — an agent reading `--sort date_asc` will believe it got a chronology. Chronology here means a bounded date range swept whole with `--pages all`.
 
 ## Rate Limiting
 
@@ -75,7 +77,7 @@ The cache must not depend on the working directory: the CLI is installed globall
 ## Gotchas
 
 - **`hl.method=original` is load-bearing.** This Solr's default highlighter returns an empty highlight block for every document on a phrase query — HTTP 200, well-formed response, no snippets — which reads as "no matches in the text" rather than as a failure. `hl.method=original` returns them correctly. `hl.usePhraseHighlighter=false` also works but highlights terms independently of the phrase. Do not remove this parameter; the failure it prevents is silent. (Note for anyone re-testing: this is *not* a function of `rows`, which was the initial hypothesis. It reproduces at `rows=2` and does not reproduce at `rows=20` with the parameter set.)
-- **`publication_date` cannot be sorted on**, only filtered. See Result Ordering.
+- **`publication_date` cannot be sorted on**, only filtered — which is why there is no `sort` parameter. See Result Ordering.
 - **A Solr error arrives under two different statuses.** A malformed query is HTTP 400 with a JSON error block; a query that times out server-side is HTTP 200 carrying the same shape. `_get_json` reads the error block *before* `raise_for_status`, so both surface as one clear message instead of an httpx traceback.
 - **The `www` host serves an anti-bot challenge with HTTP 200.** Only `www` is walled; `api.` is clean and needs no key. The Anubis proof-of-work on `www` is set to a difficulty that is not worth solving (measured at roughly 18 days single-threaded), which is fine because nothing here needs that host. The content-type check in `_get_json` is what would catch a redirect that ever routed us there.
 - **Hyphenation across line breaks is not rejoined in the OCR**, so phrase searches silently miss occurrences that broke mid-word. This is a property of the data, not something the client can fix, and it belongs in any advice about why a name looks under-represented.

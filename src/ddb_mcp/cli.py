@@ -16,7 +16,7 @@ from typing import Any
 
 import httpx
 
-from .client import DEFAULT_ROWS, DEFAULT_SORT, MAX_ROWS, SORT_ORDERS, DDBClient
+from .client import DEFAULT_ROWS, MAX_ROWS, DDBClient
 from .paths import cache_dir
 
 PROGRAM_NAME = "ddb"
@@ -120,7 +120,6 @@ async def run_search(args: argparse.Namespace) -> int:
                 language=args.language,
                 provider=args.provider,
                 zdb_id=args.zdb_id,
-                sort=args.sort,
                 snippets=0 if args.no_snippets else args.snippets,
                 snippet_size=args.snippet_size,
             )
@@ -142,13 +141,6 @@ async def run_search(args: argparse.Namespace) -> int:
                 for index, document in enumerate(result["documents"], start=offset + 1):
                     print(format_document(index, document))
 
-                if result["partial_sort"]:
-                    print(
-                        "\nNote: DDB cannot sort by date. These results are ordered "
-                        "within this page only; narrow with --from-year/--to-year and "
-                        "sweep with --pages all for a true chronology."
-                    )
-
             if not result["documents"]:
                 break
             current += 1
@@ -169,7 +161,6 @@ async def run_snippets(args: argparse.Namespace) -> int:
             query=args.query,
             page=1,
             rows=args.rows,
-            sort=DEFAULT_SORT,
             snippets=args.snippets,
             snippet_size=args.snippet_size,
             restrict_to=identifier,
@@ -256,12 +247,6 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--language", help="Language code, ISO 639-2 (e.g. ger)")
     search.add_argument("--provider", help="Restrict to a holding institution")
     search.add_argument("--zdb-id", help="Restrict to a ZDB title identifier")
-    search.add_argument(
-        "--sort",
-        choices=SORT_ORDERS,
-        default=DEFAULT_SORT,
-        help=f"Result ordering (default: {DEFAULT_SORT})",
-    )
     search.add_argument(
         "--no-snippets",
         action="store_true",
