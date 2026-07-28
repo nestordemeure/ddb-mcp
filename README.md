@@ -41,12 +41,12 @@ gemini mcp list   # For Gemini CLI
 ## Usage
 
 ```bash
-ddb search '"Bert Reese"'                                    # 31 pages, 1901-1938
-ddb search 'Hanussen' --from-year 1930 --to-year 1933
-ddb search 'Hellseher AND Telepathie' --place Berlin --rows 50
-ddb search '"Erik Jan Hanussen" OR Hanuffen' --pages all     # sweep a bounded query
-ddb snippets ZKGB4EXAMPLEITEMID 'Gedankenleser'              # where it appears in an issue
-ddb get ZKGB4EXAMPLEITEMID-fulltext_5_DDB_FULLTEXT           # cached OCR text path
+ddb search '"Luftschiffhafen Friedrichshafen"'                # 29 pages, 1909-1935
+ddb search '"Luftschiffhafen Friedrichshafen"' --pages all    # sweep a bounded query
+ddb search 'Zeppelin' --from-year 1900 --to-year 1910 --rows 50
+ddb search 'Straßenbahn AND Unfall' --place Berlin
+ddb snippets BGQICR4U4JYQ35MJ35MNBWQSJ6LA7KDR 'Zeppelin'      # where it appears in an issue
+ddb get BGQICR4U4JYQ35MJ35MNBWQSJ6LA7KDR-ALTO10268886_DDB_FULLTEXT   # cached OCR text path
 ```
 
 Add `--json` for machine-readable output.
@@ -55,7 +55,7 @@ Add `--json` for machine-readable output.
 
 **There is no date ordering, deliberately.** `publication_date` is a Solr `DateRangeField` and the server refuses to sort on it, so results always come back by relevance. Rather than offer a flag that quietly reordered only the handful of results already fetched — a chronology in name while the *selection* stayed relevance-ranked — the client omits it. Chronological work means bounding the query with `--from-year`/`--to-year` and sweeping the range with `--pages all`; the ordering then falls out of the sweep.
 
-**The result total is a true count.** Solr reports `numFoundExact`, and it survives checking: `"Bert Reese"` reports 31 results and returns exactly 31 documents. This is unlike Gallica, whose totals are a ranking depth — here a total can be quoted, and a swept query really has been swept.
+**The result total is a true count.** Solr reports `numFoundExact`, and it survives checking: `"Luftschiffhafen Friedrichshafen"` reports 29 results and returns exactly 29 documents, spanning 1909 to 1935. This is unlike Gallica, whose totals are a ranking depth — here a total can be quoted, and a swept query really has been swept.
 
 Downloads are cached in `$XDG_CACHE_HOME/ddb-mcp` (override with `--cache-dir` or `DDB_CACHE_DIR`). The cache location does not depend on the working directory, so the CLI can be run from anywhere.
 
