@@ -62,6 +62,32 @@ HIGHLIGHT_POST = "}"
 DEFAULT_ROWS = 20
 MAX_ROWS = 100
 
+# The facets worth listing, keyed by the `search` flag their values belong to.
+#
+# The core carries no other facetable metadata. Probing every plausible name -
+# publication frequency, region, state, subject, keywords, format, medium,
+# genre, sector, contributor, creator, publisher, editor, collection - had Solr
+# answer "undefined field" to all of them; the portal's own sidebar offers only
+# year, title, place, provider and language, which is the set below plus the
+# date range. Two fields exist but are not listed here: `license` is populated
+# on issue documents only, so faceting it over pages returns nothing, and
+# `type` has just the two values `page` and `issue`.
+#
+# `paper_title` is deliberately absent as a facet field even though it is a
+# filter. It is text-analysed with German stemming, so its facet terms are
+# stemmed tokens - `zeitung`, `nachricht`, `fuer` - rather than newspaper
+# titles. Titles are faceted through `zdb_id`, which is one term per title, and
+# the readable name is attached afterwards.
+FACET_FIELDS = {
+    "place": "place_of_distribution",
+    "provider": "provider",
+    "language": "language",
+    "title": "zdb_id",
+}
+
+DEFAULT_FACET_VALUES = 20
+MAX_FACET_VALUES = 100
+
 # A human-readable page in the DDB newspaper viewer.
 VIEWER_URL = "https://www.deutsche-digitale-bibliothek.de/newspaper/item/{item_id}?issuepage={page}"
 
@@ -193,6 +219,161 @@ class DDBClient:
             "total_pages": total_pages,
             "documents": documents,
         }
+
+    async def facet(
+        self,
+        field: str,
+        query: str = "",
+        limit: int = DEFAULT_FACET_VALUES,
+        from_year: int | None = None,
+        to_year: int | None = None,
+        paper_title: str | None = None,
+        place: str | None = None,
+        language: str | None = None,
+        provider: str | None = None,
+        zdb_id: str | None = None,
+    ) -> dict[str, Any]:
+        """List the values of one facet, most pages first.
+
+        ``field`` is one of :data:`FACET_FIELDS`, named after the ``search``
+        argument whose values it lists. The values come back exactly as indexed,
+        which is the point: ``place_of_distribution`` and ``provider`` are string
+        fields matched whole, so ``place="Halle"`` finds nothing while
+        ``place="Halle (Saale)"`` finds 1.1M pages, and a caller has otherwise no
+        way to learn which of the two the index holds. Passing a query and the
+        usual filters restricts the counts to that result set, which turns the
+        same call into "where, and in which papers, does this term appear".
+
+        Returns a dict with ``field``, ``solr_field``, ``total_results`` (pages
+        matching the query and filters, not the sum of the counts) and
+        ``values``. ``place`` and ``language`` are multi-valued per page, so
+        their counts can sum to more than the total.
+        """
+        try:
+            solr_field = FACET_FIELDS[field]
+        except KeyError:
+            raise ValueError(
+                f"Unknown facet {field!r}; choose one of "
+                f"{', '.join(sorted(FACET_FIELDS))}."
+            ) from None
+
+        limit = max(1, min(limit, MAX_FACET_VALUES))
+
+        solr_query = self._build_query(query)
+        filters = self._build_filters(
+            from_year=from_year,
+            to_year=to_year,
+            paper_title=paper_title,
+            place=place,
+            language=language,
+            provider=provider,
+            zdb_id=zdb_id,
+        )
+
+        params: list[tuple[str, str]] = [
+            ("q", solr_query),
+            ("rows", "0"),
+            ("facet", "true"),
+            ("facet.field", solr_field),
+            ("facet.limit", str(limit)),
+            # A value carried by no matching page is noise, and sorting by count
+            # is the only honest ordering here: it is what the index computed,
+            # not a reordering of something already fetched.
+            ("facet.mincount", "1"),
+            ("facet.sort", "count"),
+            ("wt", "json"),
+        ]
+        params.extend(("fq", clause) for clause in filters)
+
+        payload = await self._get_json(params)
+        response = payload.get("response")
+        if response is None or "numFound" not in response:
+            raise RuntimeError(
+                "DDB returned a response with no result block; the search index "
+                "may have changed shape."
+            )
+
+        raw = (
+            (payload.get("facet_counts") or {}).get("facet_fields") or {}
+        ).get(solr_field)
+        if raw is None:
+            raise RuntimeError(
+                f"DDB returned no facet block for {solr_field!r}. The field may "
+                "have been withdrawn from the index."
+            )
+
+        # Solr's JSON facet block is a flat [value, count, value, count, ...].
+        values = [
+            {"value": str(value), "count": int(count)}
+            for value, count in zip(raw[0::2], raw[1::2])
+            if str(value)
+        ]
+
+        if field == "title" and values:
+            titles = await self._resolve_zdb_titles(
+                [entry["value"] for entry in values], solr_query, filters
+            )
+            for entry in values:
+                entry["title"] = titles.get(entry["value"])
+
+        return {
+            "field": field,
+            "solr_field": solr_field,
+            "total_results": int(response["numFound"]),
+            "values": values,
+        }
+
+    async def _resolve_zdb_titles(
+        self, zdb_ids: list[str], solr_query: str, filters: list[str]
+    ) -> dict[str, str]:
+        """Attach a readable newspaper title to each ZDB identifier.
+
+        One grouped query returns a single representative page per identifier,
+        which is enough for a label. The counts are *not* taken from here: this
+        index is sharded, and a group's `numFound` under distributed grouping
+        reports the shard that supplied the top document rather than the whole
+        index - it read 150 for a title the facet counted 404 times. Only the
+        facet counts are trustworthy, so only the title text is read here.
+
+        The caller's query and filters are reapplied so that the label comes from
+        a page that actually matched. It changes the answer: the same identifier
+        labelled itself `... Vorabend-Blatt` unfiltered and `... Morgen-Blatt`
+        once the query was applied, the two editions being separate documents
+        under one identifier.
+
+        That still does not make the label a date-accurate title. A ZDB
+        identifier can carry several title forms - `Hamburger Fremdenblatt` and
+        `Hamburger Fremdenblatt, Abendausgabe` share one - and the recorded string
+        describes the whole run, so a paper's later subtitle appears on pages
+        printed decades earlier (a 1900-1910 facet labels one Stuttgart daily with
+        a subtitle it only acquired in the 1930s). The label is a signpost; the
+        identifier is what to filter on.
+        """
+        clause = " OR ".join(f'"{self._escape_phrase(value)}"' for value in zdb_ids)
+        params: list[tuple[str, str]] = [
+            ("q", solr_query),
+            ("fq", f"zdb_id:({clause})"),
+            ("rows", str(len(zdb_ids))),
+            ("group", "true"),
+            ("group.field", "zdb_id"),
+            ("group.limit", "1"),
+            ("fl", "zdb_id,paper_title"),
+            ("wt", "json"),
+        ]
+        params.extend(("fq", value) for value in filters)
+        payload = await self._get_json(params)
+
+        groups = ((payload.get("grouped") or {}).get("zdb_id") or {}).get("groups") or []
+        titles: dict[str, str] = {}
+        for group in groups:
+            identifier = group.get("groupValue")
+            docs = (group.get("doclist") or {}).get("docs") or []
+            if not identifier or not docs:
+                continue
+            title = self._first_value(docs[0].get("paper_title"))
+            if title:
+                titles[str(identifier)] = title
+        return titles
 
     async def get_page_text(self, identifier: str, refresh: bool = False) -> str:
         """Download the OCR text of a page, or of every page of an issue.

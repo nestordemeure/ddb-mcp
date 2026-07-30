@@ -7,10 +7,10 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 try:
-    from .client import DEFAULT_ROWS, DDBClient
+    from .client import DEFAULT_FACET_VALUES, DEFAULT_ROWS, DDBClient
     from .paths import cache_dir
 except ImportError:  # direct execution
-    from ddb_mcp.client import DEFAULT_ROWS, DDBClient
+    from ddb_mcp.client import DEFAULT_FACET_VALUES, DEFAULT_ROWS, DDBClient
     from ddb_mcp.paths import cache_dir
 
 mcp = FastMCP("DDB")
@@ -74,6 +74,46 @@ async def search_ddb(
         paper_title=paper_title,
         place=place,
         language=language,
+    )
+
+
+@mcp.tool()
+async def list_ddb_facet_values(
+    field: str,
+    query: str = "",
+    limit: int = DEFAULT_FACET_VALUES,
+    from_year: int | None = None,
+    to_year: int | None = None,
+) -> dict:
+    """List the values a search filter can take, with page counts.
+
+    Use this before filtering, and to characterise a result set. `place` and
+    `provider` are matched as whole strings, so place='Halle' returns zero pages
+    while place='Halle (Saale)' returns 1.1M - this is how to find which form the
+    index holds. Given a query, the counts describe that result set instead of
+    the whole corpus, which answers "where did this term appear, and in which
+    newspapers".
+
+    Args:
+        field: One of 'place', 'provider', 'language', 'title'. 'title' lists ZDB
+            identifiers with one recorded title form each, because the title
+            field is stemmed text and facets into word stems rather than titles.
+        query: Optional Solr query over page OCR; omit for the whole corpus
+        limit: Values to return (max 100)
+        from_year: Earliest publication year, inclusive
+        to_year: Latest publication year, inclusive
+
+    Returns:
+        total_results (pages matching the query, not the sum of the counts) and
+        values, ordered by count. `place` and `language` are multi-valued per
+        page, so their counts can sum to more than the total.
+    """
+    return await get_client().facet(
+        field=field,
+        query=query,
+        limit=limit,
+        from_year=from_year,
+        to_year=to_year,
     )
 
 

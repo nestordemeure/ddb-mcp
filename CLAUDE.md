@@ -11,6 +11,7 @@ MCP server and CLI for the Deutsches Zeitungsportal, the newspaper collection of
 - **Fulltext search** over ~33.8M German newspaper pages, with the full Solr syntax
 - **Highlighted snippets** returned by the search itself, matched terms in `{braces}`
 - **Filters** for date range, newspaper title, place, language, provider and ZDB id
+- **Facet listing** of the values a filter can take, with page counts, over the corpus or over one query's results
 - **OCR text download** for a page or a whole issue, with local caching
 - **Pagination** up to 100 results per page
 
@@ -44,6 +45,32 @@ ddb-mcp/
 - `preview_reference` links to ALTO v3 XML with per-word pixel coordinates.
 
 **Item metadata:** `https://api.deutsche-digitale-bibliothek.de/2/items/{ITEM_ID}` — not used by the client, but it is where the canonical record lives.
+
+## Facets, and the Fields That Do Not Exist
+
+Only the `select` handler is exposed. `schema/fields` and `admin/luke` both 404, so there is no way to enumerate the schema — but Solr rejects an undefined `facet.field` with a 400 naming it, and batching candidates into one facet request against a single-document query makes each probe free. That is how the field set below was established, and it is how to re-check it.
+
+**The whole schema, live-verified.** A page carries `id`, `pagename`, `pagenumber`, `paper_title`, `provider`, `provider_ddb_id`, `zdb_id`, `publication_date`, `place_of_distribution`, `language`, `type`, `thumbnail`, `pagefulltext`, `plainpagefulltext`, `preview_reference`. An issue carries the same metadata minus the page-level and fulltext fields, plus `license` and `ns_disclaimer_required`.
+
+**There is nothing else.** Every plausible name for the facets a newspaper portal might offer was probed and rejected as an undefined field: `publication_frequency`, `frequency`, `region`, `state`, `country`, `place_of_publication`, `publication_place`, `subject`, `keywords`, `topic`, `format`, `medium`, `category`, `sector`, `genre`, `collection`, `coverage`, `contributor`, `creator`, `publisher`, `editor`, `year`, `issue_number`, `edition`, `supplement`, `issn`, `paper_id`, `rights`. The portal's own web interface offers year, title, place, provider and language and nothing more, which matches. **Do not add `--subject`, `--format` or `--contributor` here to match the sibling sources: the concepts have no field to attach to.**
+
+**Two fields exist and are still not exposed.**
+
+- `license` is populated on **issue** documents only. `type:page AND license:*` returns 0 of 33.8M pages, while `type:issue AND license:*` returns all 5.49M issues. Since this client searches pages, a `--license` flag would accept a valid-looking value and silently return nothing — the exact trap the rest of this file is about.
+- `provider_ddb_id` filters pages correctly (1,564,725 for the Halle provider, matching the count for the provider's full name) but says nothing `--provider` does not, and `ddb facets provider` now supplies the name verbatim.
+
+`pagenumber` is filterable too — `pagenumber:1` selects 4.76M pages — but "page 1 of the digitised unit" was not verified to mean "front page of the issue" across providers, so it is not offered.
+
+**String fields versus analysed text.** This distinction drives the whole facet feature:
+
+| Field | Kind | A partial value |
+|---|---|---|
+| `place_of_distribution`, `provider`, `language`, `zdb_id` | string, matched whole | **0 results, no error** |
+| `paper_title` | text, German stemming | matches (`"Nachrichten"` → 3.17M) |
+
+`place_of_distribution:"Halle"` returns 0 where `"Halle (Saale)"` returns 1,130,771; `provider:"Bayerische"` returns 0 where `"Bayerische Staatsbibliothek"` returns 8,278,045. Nothing distinguishes a wrong value from an absent one, which is why `facets` exists.
+
+The same distinction rules `paper_title` out as a facet field: faceting it returns German-stemmed tokens (`und`, `zeitung`, `fuer`, `nachricht`), not titles. `FACET_FIELDS` therefore maps the `title` facet onto `zdb_id`, one term per paper, and a second grouped request attaches a readable `paper_title`. A full-corpus facet over four fields costs ~1.9s server-side; over a query, ~270ms.
 
 **Viewer URL:** `https://www.deutsche-digitale-bibliothek.de/newspaper/item/{ITEM_ID}?issuepage={n}` — for a human to open, never to fetch.
 
@@ -80,6 +107,9 @@ The cache must not depend on the working directory: the CLI is installed globall
 
 - **`hl.method=original` is load-bearing.** This Solr's default highlighter returns an empty highlight block for every document on a phrase query — HTTP 200, well-formed response, no snippets — which reads as "no matches in the text" rather than as a failure. `hl.method=original` returns them correctly. `hl.usePhraseHighlighter=false` also works but highlights terms independently of the phrase. Do not remove this parameter; the failure it prevents is silent. (Note for anyone re-testing: this is *not* a function of `rows`, which was the initial hypothesis. It reproduces at `rows=2` and does not reproduce at `rows=20` with the parameter set.)
 - **`publication_date` cannot be sorted on**, only filtered — which is why there is no `sort` parameter. See Result Ordering.
+- **A wrong value for an exact-match filter is indistinguishable from an absent one.** `--place Halle` prints `0 pages matched`, not an error. See the facet section above; `ddb facets` is the answer, not more guessing.
+- **Group `numFound` is not a count on this index.** It is sharded, and under distributed grouping a group's `numFound` reports the shard that supplied the top document: one title read 150 there against a facet count of 404 for the same query. `_resolve_zdb_titles` therefore takes only the *title text* from the grouped response and every count from the facet block. Group *ordering* is by the top document's score, not by group size, which is a second reason not to build a "biggest titles" listing out of grouping — it would repeat the fake-sort mistake in a new place.
+- **A ZDB id's `paper_title` is not a date-accurate title.** The recorded string covers the paper's whole run, so a 1900-1910 facet shows a Stuttgart daily carrying a subtitle it only acquired in the 1930s, and one id can cover several forms (morning and evening editions). `_resolve_zdb_titles` reapplies the caller's query and filters, which does change the answer — one id labelled itself `... Vorabend-Blatt` unfiltered and `... Morgen-Blatt` under a query — but it cannot make the label authoritative. The id is the exact value; the title is a signpost.
 - **A Solr error arrives under two different statuses.** A malformed query is HTTP 400 with a JSON error block; a query that times out server-side is HTTP 200 carrying the same shape. `_get_json` reads the error block *before* `raise_for_status`, so both surface as one clear message instead of an httpx traceback.
 - **The `www` host serves an anti-bot challenge with HTTP 200.** Only `www` is walled; `api.` is clean and needs no key. The Anubis proof-of-work on `www` is set to a difficulty that is not worth solving (measured at roughly 18 days single-threaded), which is fine because nothing here needs that host. The content-type check in `_get_json` is what would catch a redirect that ever routed us there.
 - **Hyphenation across line breaks is not rejoined in the OCR**, so phrase searches silently miss occurrences that broke mid-word. This is a property of the data, not something the client can fix, and it belongs in any advice about why a name looks under-represented.

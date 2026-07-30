@@ -13,13 +13,35 @@ Results are individual **pages**, not issues or titles. A hit tells you the news
 
 ```sh
 ddb search "<query>" [--pages N|N-M|all] [--rows N] [filters] [--json]
+ddb facets <field> ["<query>"] [--limit N] [filters]   # what values a filter can take
 ddb snippets <id> "<query>"   # where a query appears inside one page or issue
 ddb get <id>                  # download OCR text, prints path to the cached file
 ```
 
-Filters for `search`: `--from-year`, `--to-year`, `--title TEXT` (newspaper title), `--place TEXT`, `--language CODE` (ISO 639-2, `ger`), `--provider TEXT` (holding institution), `--zdb-id ID`.
+Filters for `search` and `facets`: `--from-year`, `--to-year`, `--title TEXT` (newspaper title), `--place TEXT`, `--language CODE` (ISO 639-2, `ger`), `--provider TEXT` (holding institution), `--zdb-id ID`.
 
 **There is no `--sort`.** Results come back by relevance; see the trap below.
+
+## `facets` — finding the value, and characterising a result set
+
+`ddb facets place|provider|language|title` lists the values that filter can take, with page counts, most pages first. It does two different jobs.
+
+**Getting the value right.** `--place` and `--provider` match a whole string, and a near-miss is not a near-miss — it is silence. `--place Halle` reports `0 pages matched` with no error; `--place "Halle (Saale)"` matches 1.1 million pages. `--provider Bayerische` matches nothing; `--provider "Bayerische Staatsbibliothek"` matches 8.3 million. There is no way to guess which form the index holds, so look before filtering. `--title` is the forgiving exception: it is analysed text with German stemming, so a fragment of a title works.
+
+**Characterising what you found.** Hand `facets` a query and the counts describe that result set, computed by the index over all of it rather than over the twenty results you fetched. This is the closest thing this source has to an overview, and it is worth a request before a long sweep:
+
+```sh
+ddb facets place '"Hellseher"' --limit 15                     # the geography of a term
+ddb facets title 'Hanussen' --from-year 1930 --to-year 1935   # which papers carried him
+ddb facets language '"Gedankenleser"'                        # is the corpus really all German
+```
+
+`facets title` lists **ZDB identifiers with a title beside each**, because `paper_title` is stemmed text and facets into word stems (`zeitung`, `nachricht`, `fuer`) rather than titles — so titles are counted through `zdb_id`, which is one term per paper, and labelled afterwards. Two consequences worth holding on to:
+
+- The identifier is the exact thing and pastes straight into `--zdb-id`. The title beside it is a signpost: the recorded string covers a paper's whole run, so a 1900-1910 listing happily shows a subtitle the paper only acquired in the 1930s, and one identifier can cover several forms (`Hamburger Fremdenblatt` and `Hamburger Fremdenblatt, Abendausgabe`).
+- Counts are page counts per title, so a paper publishing morning and evening editions under one identifier accumulates both.
+
+`place` and `language` are multi-valued per page, so their counts can sum to more than the total. That is not double counting to correct for — it means a page distributed in two places is counted in both.
 
 Identifiers come in two shapes and both commands accept either. A **page id** looks like `QH5LZ372MFWP2SLFKDRQI4FK3BN4O6JI-fulltext_5_DDB_FULLTEXT`; an **issue id** is the part before the hyphen. Give `get` an issue id and it returns every page of that issue in one file, with `=== ... page N ===` markers between them.
 

@@ -16,7 +16,14 @@ from typing import Any
 
 import httpx
 
-from .client import DEFAULT_ROWS, MAX_ROWS, DDBClient
+from .client import (
+    DEFAULT_FACET_VALUES,
+    DEFAULT_ROWS,
+    FACET_FIELDS,
+    MAX_FACET_VALUES,
+    MAX_ROWS,
+    DDBClient,
+)
 from .paths import cache_dir
 
 PROGRAM_NAME = "ddb"
@@ -183,6 +190,44 @@ async def run_snippets(args: argparse.Namespace) -> int:
         await client.close()
 
 
+async def run_facets(args: argparse.Namespace) -> int:
+    """List the values of one facet, so a filter can be given verbatim."""
+    client = build_client(args)
+    try:
+        result = await client.facet(
+            field=args.field,
+            query=args.query,
+            limit=args.limit,
+            from_year=args.from_year,
+            to_year=args.to_year,
+            paper_title=args.title,
+            place=args.place,
+            language=args.language,
+            provider=args.provider,
+            zdb_id=args.zdb_id,
+        )
+
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
+
+        values = result["values"]
+        print(
+            f"{result['total_results']} pages matched; "
+            f"{len(values)} {args.field} value(s), most pages first"
+        )
+        for entry in values:
+            line = f"    {entry['count']:>10}  {entry['value']}"
+            if title := entry.get("title"):
+                line += f"  {title}"
+            print(line)
+        if not values:
+            print("    (no values; the query or filters matched nothing)")
+        return 0
+    finally:
+        await client.close()
+
+
 async def run_get(args: argparse.Namespace) -> int:
     client = build_client(args)
     try:
@@ -196,6 +241,35 @@ async def run_get(args: argparse.Namespace) -> int:
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--cache-dir", help="Override the cache directory")
     parser.add_argument("--json", action="store_true", help="Emit raw JSON")
+
+
+def add_filter_arguments(parser: argparse.ArgumentParser) -> None:
+    """The filters shared by `search` and `facets`; all optional."""
+    parser.add_argument("--from-year", type=int, help="Earliest publication year")
+    parser.add_argument("--to-year", type=int, help="Latest publication year")
+    parser.add_argument(
+        "--title",
+        help=(
+            "Restrict to a newspaper title. Matched as text with German "
+            "stemming, so a fragment of the title is enough"
+        ),
+    )
+    parser.add_argument(
+        "--place",
+        help=(
+            "Restrict to a place of distribution, matched whole: "
+            "'Halle (Saale)', not 'Halle'. See `ddb facets place`"
+        ),
+    )
+    parser.add_argument("--language", help="Language code, ISO 639-2 (e.g. ger)")
+    parser.add_argument(
+        "--provider",
+        help=(
+            "Restrict to a holding institution, matched whole - the full "
+            "official name. See `ddb facets provider`"
+        ),
+    )
+    parser.add_argument("--zdb-id", help="Restrict to a ZDB title identifier")
 
 
 def add_snippet_arguments(parser: argparse.ArgumentParser) -> None:
@@ -240,13 +314,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_ROWS,
         help=f"Results per page, max {MAX_ROWS} (default: {DEFAULT_ROWS})",
     )
-    search.add_argument("--from-year", type=int, help="Earliest publication year")
-    search.add_argument("--to-year", type=int, help="Latest publication year")
-    search.add_argument("--title", help="Restrict to a newspaper title")
-    search.add_argument("--place", help="Restrict to a place of distribution")
-    search.add_argument("--language", help="Language code, ISO 639-2 (e.g. ger)")
-    search.add_argument("--provider", help="Restrict to a holding institution")
-    search.add_argument("--zdb-id", help="Restrict to a ZDB title identifier")
+    add_filter_arguments(search)
     search.add_argument(
         "--no-snippets",
         action="store_true",
@@ -271,6 +339,42 @@ def build_parser() -> argparse.ArgumentParser:
     add_snippet_arguments(snippets)
     add_common_arguments(snippets)
     snippets.set_defaults(func=run_snippets)
+
+    facets = subparsers.add_parser(
+        "facets",
+        help="List the values of a filter, with page counts, most pages first",
+        description=(
+            "List the values a filter can take, so it can be given verbatim. "
+            "--place and --provider match a whole string, so a near-miss returns "
+            "zero pages with no error; this is how to find the exact value. Give "
+            "a query and the counts describe that result set instead of the whole "
+            "corpus - where a term appears, and in which papers."
+        ),
+    )
+    facets.add_argument(
+        "field",
+        choices=sorted(FACET_FIELDS),
+        help=(
+            "Which filter's values to list. 'title' lists ZDB identifiers with "
+            "one recorded title form each, because the title field itself is "
+            "stemmed text and facets into word stems, not titles"
+        ),
+    )
+    facets.add_argument(
+        "query",
+        nargs="?",
+        default="",
+        help="Optional Solr query; omit to describe the whole corpus",
+    )
+    facets.add_argument(
+        "--limit",
+        type=int,
+        default=DEFAULT_FACET_VALUES,
+        help=f"Values to list, max {MAX_FACET_VALUES} (default: {DEFAULT_FACET_VALUES})",
+    )
+    add_filter_arguments(facets)
+    add_common_arguments(facets)
+    facets.set_defaults(func=run_facets)
 
     get = subparsers.add_parser(
         "get",

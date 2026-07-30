@@ -3,6 +3,7 @@
 MCP server and CLI for the [Deutsches Zeitungsportal](https://www.deutsche-digitale-bibliothek.de/newspaper), the newspaper collection of the Deutsche Digitale Bibliothek (DDB). Search the full text of ~33.8 million digitised German newspaper pages, of which roughly 27.9 million fall between 1850 and 1949.
 
 - **search**: full Solr syntax over page OCR — exact phrases, boolean operators, wildcards, fuzzy matching and proximity — with filters for date, title, place, language and holding institution. Every hit is an individual **page**, and comes with highlighted snippets showing where the query matched.
+- **facets**: list the values a filter can take, with page counts — the places, holding institutions, languages and newspaper titles the index actually holds, either across the whole corpus or within one query's results.
 - **snippets**: locate a query inside one page or across every page of an issue you already have in hand.
 - **get**: download the OCR text of a page or a whole issue, cached locally.
 
@@ -45,11 +46,20 @@ ddb search '"Luftschiffhafen Friedrichshafen"'                # 29 pages, 1909-1
 ddb search '"Luftschiffhafen Friedrichshafen"' --pages all    # sweep a bounded query
 ddb search 'Zeppelin' --from-year 1900 --to-year 1910 --rows 50
 ddb search 'Straßenbahn AND Unfall' --place Berlin
+ddb facets place                                              # places the index holds, by page count
+ddb facets place 'Zeppelin' --limit 5                         # where a term appears
+ddb facets title 'Zeppelin' --from-year 1900 --to-year 1910   # which papers carried it
 ddb snippets BGQICR4U4JYQ35MJ35MNBWQSJ6LA7KDR 'Zeppelin'      # where it appears in an issue
 ddb get BGQICR4U4JYQ35MJ35MNBWQSJ6LA7KDR-ALTO10268886_DDB_FULLTEXT   # cached OCR text path
 ```
 
 Add `--json` for machine-readable output.
+
+**`--place` and `--provider` match a whole string, which is what `facets` is for.** They are Solr string fields, so a near-miss is not a near-miss: `--place Halle` reports `0 pages matched` with no error at all, while `--place 'Halle (Saale)'` matches 1.1 million pages. Institution names are worse, being long and official — `Bayerische Staatsbibliothek` matches 8.3 million pages and `Bayerische` matches none. `ddb facets place` and `ddb facets provider` print the values verbatim, so they can be copied across. `--title` is the forgiving one: it is analysed text with German stemming, so a fragment of a title is enough.
+
+Given a query, `facets` describes that result set rather than the corpus, which makes it a characterisation tool as much as a lookup: the geography of a term, or the newspapers that carried it. Counts are computed by the index over the whole result set, not over the results already fetched. `facets title` lists ZDB identifiers with one recorded title form each — the title field is stemmed text and facets into word stems (`zeitung`, `nachricht`) rather than titles, so titles are counted through `zdb_id` and labelled afterwards. The label is a signpost, not a date-accurate title: the recorded string describes a paper's whole run, so a date-bounded listing can show a subtitle the paper only acquired later. The identifier beside it is the exact thing, and goes straight into `--zdb-id`.
+
+The filters the portal itself offers are year, title, place, provider and language, and all five are here. There is no facet for publication frequency, region or state, subject, format, contributor or material type: those fields are absent from this index, not merely unexposed.
 
 **Search already includes snippets**, which is the important workflow difference from the sibling clients. DDB returns highlighted excerpts in the search response itself, so judging a hit costs nothing beyond the search that found it. Reach for `get` only when a page or issue is worth reading at length. Use `--no-snippets` when you want a compact listing.
 
