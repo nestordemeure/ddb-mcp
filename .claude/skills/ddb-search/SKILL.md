@@ -1,13 +1,13 @@
 ---
 name: ddb-search
-description: Search the Deutsches Zeitungsportal (Deutsche Digitale Bibliothek) with the `ddb` CLI. Use for German-language newspapers 1850-1950 — the German press coverage of touring performers, and anything published in Germany.
+description: Search the Deutsches Zeitungsportal (Deutsche Digitale Bibliothek) with the `ddb` CLI. Use it for German-language newspapers from 1850 to 1950 — the German press coverage of performers on tour, and all material published in Germany.
 ---
 
 # Deutsches Zeitungsportal (DDB)
 
-Germany's national newspaper portal, aggregating the holdings of the Staatsbibliothek zu Berlin, the state and university libraries, and dozens of regional institutions. ~33.8 million digitised pages, of which about 27.9 million fall between 1850 and 1949. The place to look for the German press — and the 1920s and 1930s, the years of the great Weimar mind readers, are the best-covered decades in the whole collection.
+The national newspaper portal of Germany. It collects the holdings of the Staatsbibliothek zu Berlin, the state and university libraries, and dozens of regional institutions. It holds approximately 33.8 million digitised pages, and approximately 27.9 million of them are from 1850 to 1949. Use it for the German press. The 1920s and the 1930s, the years of the great Weimar mind readers, are the decades with the best coverage in the full collection.
 
-Results are individual **pages**, not issues or titles. A hit tells you the newspaper, the date and the page number, and comes with the matched text already quoted.
+The results are individual **pages**, not issues and not titles. A result tells you the newspaper, the date and the page number, and it includes the matched text.
 
 ## Commands
 
@@ -18,17 +18,17 @@ ddb snippets <id> "<query>"   # where a query appears inside one page or issue
 ddb get <id>                  # download OCR text, prints path to the cached file
 ```
 
-Filters for `search` and `facets`: `--from-year`, `--to-year`, `--title TEXT` (newspaper title), `--place TEXT`, `--language CODE` (ISO 639-2, `ger`), `--provider TEXT` (holding institution), `--zdb-id ID`.
+The filters for `search` and `facets` are `--from-year`, `--to-year`, `--title TEXT` (the newspaper title), `--place TEXT`, `--language CODE` (ISO 639-2, `ger`), `--provider TEXT` (the institution that holds the item) and `--zdb-id ID`.
 
-**There is no `--sort`.** Results come back by relevance; see the trap below.
+**There is no `--sort` option.** The results come back in order of relevance. See the risks below.
 
-## `facets` — finding the value, and characterising a result set
+## `facets` — how to find a value, and how to describe a result set
 
-`ddb facets place|provider|language|title` lists the values that filter can take, with page counts, most pages first. It does two different jobs.
+`ddb facets place|provider|language|title` lists the values that a filter can take, with page counts, and it puts the largest counts first. It does two different tasks.
 
-**Getting the value right.** `--place` and `--provider` match a whole string, and a near-miss is not a near-miss — it is silence. `--place Halle` reports `0 pages matched` with no error; `--place "Halle (Saale)"` matches 1.1 million pages. `--provider Bayerische` matches nothing; `--provider "Bayerische Staatsbibliothek"` matches 8.3 million. There is no way to guess which form the index holds, so look before filtering. `--title` is the forgiving exception: it is analysed text with German stemming, so a fragment of a title works.
+**How to find the correct value.** `--place` and `--provider` match a full string, and a near-miss is not a near-miss. It is silence. `--place Halle` reports `0 pages matched` with no error. `--place "Halle (Saale)"` matches 1.1 million pages. `--provider Bayerische` matches nothing. `--provider "Bayerische Staatsbibliothek"` matches 8.3 million. You cannot guess which form the index holds, so look before you filter. `--title` is the one exception: it is analysed text with German stemming, so a fragment of a title operates correctly.
 
-**Characterising what you found.** Hand `facets` a query and the counts describe that result set, computed by the index over all of it rather than over the twenty results you fetched. This is the closest thing this source has to an overview, and it is worth a request before a long sweep:
+**How to describe a result set.** Give `facets` a query, and the counts describe that result set. The index computes them over the full set, not over the twenty results that you received. This is the nearest thing to an overview that this source has, and it is worth one request before a long search:
 
 ```sh
 ddb facets place '"Hellseher"' --limit 15                     # the geography of a term
@@ -36,80 +36,84 @@ ddb facets title 'Hanussen' --from-year 1930 --to-year 1935   # which papers car
 ddb facets language '"Gedankenleser"'                        # is the corpus really all German
 ```
 
-`facets title` lists **ZDB identifiers with a title beside each**, because `paper_title` is stemmed text and facets into word stems (`zeitung`, `nachricht`, `fuer`) rather than titles — so titles are counted through `zdb_id`, which is one term per paper, and labelled afterwards. Two consequences worth holding on to:
+`facets title` lists **ZDB identifiers with a title beside each one**. The reason is that `paper_title` is stemmed text, and it facets into word stems (`zeitung`, `nachricht`, `fuer`) and not into titles. Thus the tool counts the titles through `zdb_id`, which is one term for each paper, and adds the labels afterwards. This has two consequences:
 
-- The identifier is the exact thing and pastes straight into `--zdb-id`. The title beside it is a signpost: the recorded string covers a paper's whole run, so a 1900-1910 listing happily shows a subtitle the paper only acquired in the 1930s, and one identifier can cover several forms (`Hamburger Fremdenblatt` and `Hamburger Fremdenblatt, Abendausgabe`).
-- Counts are page counts per title, so a paper publishing morning and evening editions under one identifier accumulates both.
+- The identifier is exact, and you can put it directly into `--zdb-id`. The title beside it is only a guide. The recorded string covers the full run of a paper, so an entry for 1900-1910 can show a subtitle that the paper received in the 1930s. One identifier can also cover several forms (`Hamburger Fremdenblatt` and `Hamburger Fremdenblatt, Abendausgabe`).
+- The counts are page counts for each title. Thus a paper with a morning edition and an evening edition under one identifier collects both.
 
-`place` and `language` are multi-valued per page, so their counts can sum to more than the total. That is not double counting to correct for — it means a page distributed in two places is counted in both.
+`place` and `language` can have more than one value for each page, so their counts can sum to more than the total. This is not an error to correct. It means that the tool counts a page distributed in two places in both places.
 
-Identifiers come in two shapes and both commands accept either. A **page id** looks like `QH5LZ372MFWP2SLFKDRQI4FK3BN4O6JI-fulltext_5_DDB_FULLTEXT`; an **issue id** is the part before the hyphen. Give `get` an issue id and it returns every page of that issue in one file, with `=== ... page N ===` markers between them.
+The identifiers have two shapes, and both commands accept both shapes. A **page id** looks like `QH5LZ372MFWP2SLFKDRQI4FK3BN4O6JI-fulltext_5_DDB_FULLTEXT`. An **issue id** is the part before the hyphen. Give `get` an issue id, and it gives each page of that issue in one file, with `=== ... page N ===` markers between the pages.
 
-## Search already gives you the snippets
+## The search already gives you the snippets
 
-This is the important workflow difference from the other sources. DDB returns highlighted excerpts **in the search response itself**, with matched terms in `{braces}`, so judging a hit costs nothing beyond the search that found it. There is no separate cheap-triage step to run.
+This is the important difference in procedure from the other sources. DDB gives the highlighted extracts **in the search response**, with the matched terms in `{braces}`. Thus to judge a result costs nothing more than the search that found it. There is no separate low-cost rejection step.
 
-That makes the shape here: `search` → read the snippets → `get` only what deserves reading at length. `--snippets N` sets how many excerpts per page (default 3), `--snippet-size N` how long each is (default 200 characters). `--no-snippets` gives a compact listing when you only want to know which issues exist.
+The procedure here is: `search` → read the snippets → `get` only the pages that deserve a long reading. `--snippets N` sets the number of extracts for each page (default 3). `--snippet-size N` sets the length of each extract (default 200 characters). `--no-snippets` gives a compact list when you only want to know which issues exist.
 
-`ddb snippets` is for the case where you already hold an identifier and want to know where a *different* term appears in it — for instance sweeping a promising issue for a collaborator's name after the original search found the performer.
+Use `ddb snippets` when you already have an identifier and want to know where a *different* term appears in it. For example, use it to search a promising issue for the name of a collaborator after the first search found the performer.
 
 ## Query syntax
 
-The query is passed to Solr essentially untouched, so the whole syntax is available:
+The client sends the query to Solr with almost no change, so the full syntax is available:
 
 - `"quoted phrases"` match exactly
 - `AND`, `OR`, `NOT` — uppercase, as usual
-- Parentheses group: `(Hanussen OR Steinschneider) AND Hellseher`
-- `Hellseh*` wildcards
-- `Hanussen~1` fuzzy-matches, for OCR damage
+- Parentheses group the terms: `(Hanussen OR Steinschneider) AND Hellseher`
+- `Hellseh*` is a wildcard
+- `Hanussen~1` is a fuzzy match, for OCR errors
 - `"Hellseher Hanussen"~10` matches the two terms within ten words of each other
 
-Proximity is worth more here than on other sources. Page-level matching means an `AND` of two terms can join a name at the top of a page to a word in an unrelated column at the bottom; `~10` asks for them in the same passage, which on a dense newspaper page is usually what you meant.
+Proximity has more value here than on the other sources. A match is at page level, so an `AND` of two terms can join a name at the top of a page to a word in an unrelated column at the bottom. `~10` asks for the two terms in the same passage, which is usually your intention on a dense newspaper page.
 
-**Search in German.** Names generally carry across, but everything around them does not: `Gedankenleser` (mind reader), `Hellseher` (clairvoyant), `Telepathie`, `Gedankenübertragung` (thought transference), `Wahrsager` (fortune teller), `Medium`, `Zauberkünstler` (conjurer), `Varieté`. German papers write `Professor Reese`, not `Prof. Reese`.
+**Search in German.** Names usually stay the same, but the words around them do not: `Gedankenleser` (mind reader), `Hellseher` (clairvoyant), `Telepathie`, `Gedankenübertragung` (thought transference), `Wahrsager` (fortune teller), `Medium`, `Zauberkünstler` (conjurer), `Varieté`. German papers write `Professor Reese`, not `Prof. Reese`.
 
 ## The result total is a true count
 
-Unlike Gallica, **DDB's total means what it says.** Solr reports `numFoundExact`, and it survives checking: `"Bert Reese"` reports 31 results and returns exactly 31 documents, spanning 1901 to 1938. So:
+**The total of DDB means what it says.** This is different from Gallica. Solr reports `numFoundExact`, and tests confirm it: `"Bert Reese"` reports 31 results and gives exactly 31 documents, from 1901 to 1938. Thus:
 
-- A total may be quoted in a report as a count of matching pages.
-- A query swept to the end really has been swept, and exhaustivity claims about this source are meaningful.
-- `--pages all` is a reasonable thing to do on a bounded query, unlike on Gallica.
+- You can give a total in a report as a count of matching pages.
+- A query that you searched to the end is truly complete, and a statement about completeness on this source has a meaning.
+- `--pages all` is a reasonable action on a limited query. This is different from Gallica.
 
-Do keep the count honest about *what* it counts: pages, not articles or stories. One story continued across two pages is two hits, and a wire story reprinted in forty papers is forty.
+Keep the count honest about *what* it counts: pages, not articles and not stories. One story that continues across two pages is two results. One wire story printed in forty papers is forty results.
 
-## Being exhaustive
+## How to be complete
 
-20 results per page by default, up to 100 with `--rows`. `--pages all` sweeps to the end.
+There are 20 results on each page by default, and up to 100 with `--rows`. `--pages all` collects each page to the end.
 
-Because the totals are real, the judgement is simply whether the number is small enough to read. A few hundred pages is a sweep; tens of thousands means tightening the query first — with a date range, a title, or proximity instead of `AND`.
+The totals are real, so the decision is simple: is the number small enough to read? A few hundred pages is a search that you can complete. Tens of thousands means that you must make the query more narrow first — with a date range, with a title, or with proximity in place of `AND`.
 
 ## False positives to expect
 
-- **Hyphenation across line breaks is not rejoined.** This is the biggest practical trap on this source, and it loses hits silently rather than adding noise. The OCR keeps `Ver waltungsstellen` and `organisatori scher` exactly as the line broke them, so a phrase search misses any occurrence that happened to break mid-word. When a name looks under-represented, try its halves, or a proximity query.
-- **Letterspaced names shatter.** German papers emphasised personal names by letterspacing them, and the OCR reads each letter as a token: `S ch l e s i n g e r`. Another silent loss — reach for wildcards or fuzzy matching when a name you know is there does not appear.
-- **German stemming is active**, so single-term counts are counts of the stem: `Hellseher` and `Hellsehers` return the same 16,355. You cannot pin an exact surface form with a bare term — use a quoted phrase if the exact form matters.
-- **Long ſ reads as f.** `Hellfeher` for `Hellseher`, `Hanuffen` for `Hanussen`. Only around 0.5% of occurrences for common words but 3.8% for proper nouns, which have no lexicon to correct against — worth one extra `OR` clause per name, not a crisis.
-- **Arbitrary initial-letter substitution on names.** A 1934 paper prints Hanussen as `üanussen` and Erik as `Erle`, and those are indexed literally. `~1` fuzziness finds them but is far too noisy alone: pair it with a second term.
-- **Umlauts are preserved, not folded**, so `für` and `fur` are distinct terms. An OCR-dropped umlaut is a separate recall bucket you have to ask for.
-- **Punctuation spacing varies by provider.** Some collections put spaces around every mark (`Okt . 1932`), others do not. Never assume punctuation adjacency inside a phrase.
+- **The OCR does not join hyphenation across a line break.** This is the largest practical risk on this source, and it loses results silently. It does not add incorrect results. The OCR keeps `Ver waltungsstellen` and `organisatori scher` exactly as the line divided them, so a phrase search does not find any occurrence that divided inside a word. When a name looks rare, search for its two halves, or use a proximity query.
+- **Letterspaced names break apart.** German papers gave emphasis to personal names with letterspacing, and the OCR reads each letter as a token: `S ch l e s i n g e r`. This is a second silent loss. Use wildcards or fuzzy matching when a name that you know is present does not appear.
+- **German stemming is active**, so a count for a single term is a count for the stem: `Hellseher` and `Hellsehers` both give 16,355. You cannot select one exact surface form with a bare term. Use a quoted phrase when the exact form is important.
+- **A long ſ reads as f.** `Hellfeher` for `Hellseher`, `Hanuffen` for `Hanussen`. This occurs in approximately 0.5% of the occurrences of common words, but in 3.8% of proper nouns, which have no lexicon for a correction. Add one more `OR` clause for each name. This is not a serious problem.
+- **A substitution of the first letter of a name, with no pattern.** A paper of 1934 prints Hanussen as `üanussen` and Erik as `Erle`, and the index holds these forms exactly. `~1` fuzzy matching finds them, but alone it gives far too many incorrect results. Combine it with a second term.
+- **The index keeps the umlauts. It does not fold them**, so `für` and `fur` are different terms. When the OCR loses an umlaut, that form is a separate group of results that you must request.
+- **The spacing around punctuation is different for each provider.** Some collections put a space around each mark (`Okt . 1932`), and others do not. Never assume that a phrase holds punctuation without a space.
 - **The Fraktur double hyphen ⸗ reads as `=`**: `X = Strahl = Augen`, `Industrie = und Handelskammer`.
-- **Common names collide with places and titles.** `Cumberland` returns 110,511 pages, mostly the Duke of Cumberland; `NOT Herzog` drops it to 43,885. Check what a name competes with before trusting a large total.
+- **Common names are also places and titles.** `Cumberland` gives 110,511 pages, mostly the Duke of Cumberland. `NOT Herzog` reduces this to 43,885. Find what a name competes with before you trust a large total.
 
-## Traps specific to this source
+## Risks specific to this source
 
-- **There is no date ordering, and this differs from the other sources.** Gallica and ANNO both offer `--sort date_asc`; DDB has no equivalent, because `publication_date` is a Solr `DateRangeField` the server refuses to sort on. Do not look for the flag: it is absent on purpose rather than missing. For chronological work, narrow with `--from-year`/`--to-year` and sweep the range with `--pages all` — the ordering falls out of the sweep. Since totals here are exact, you can tell in advance whether a range is small enough to sweep whole.
-- **The `www` host is walled, the API host is not.** `www.deutsche-digitale-bibliothek.de` serves an Anubis anti-bot challenge to every scripted client, with HTTP 200 rather than an error status. The CLI never touches it. This matters only if you try to fetch a viewer URL directly: those URLs are for the researcher to open in a browser, where they pass transparently, not for fetching.
-- **Snippets rely on a non-default highlighter.** The client sets `hl.method=original` because this Solr's default highlighter returns an *empty* highlight block for every document on a phrase query — a well-formed response with no snippets, which reads as "the terms are not there" rather than as a failure. If snippets ever vanish across the board while results keep arriving, that is the cause, not an absence of matches.
-- **`get` is cheap here, unusually.** A page's whole OCR is a field on the search document, so downloading is one ordinary query rather than a separate guarded endpoint. Nothing here resembles Gallica, where OCR is billed one request per page against a budget of four. Still prefer snippets for judging, because reading a whole page costs *context*, not requests.
-- An issue runs to a few hundred kilobytes across all its pages. Grep the cached file or read slices; never read it whole.
+- **There is no order by date, and this is different from the other sources.** Gallica and ANNO both offer `--sort date_asc`. DDB has no equivalent, because `publication_date` is a Solr `DateRangeField` and the server refuses to sort on it. Do not look for the flag. It is absent by decision, not by omission.
+
+  For chronological work, limit the query with `--from-year` and `--to-year`. Then collect the full range with `--pages all`. You then put the results in date order yourself. DDB does not supply that order. The totals here are exact, so you can know in advance if a range is small enough to collect completely.
+- **The `www` host has a wall. The API host does not.** `www.deutsche-digitale-bibliothek.de` sends an Anubis anti-bot challenge to each script, with HTTP 200 and not with an error status. The CLI never uses that host. This is important only if you try to fetch a viewer URL directly. Those URLs are for the researcher to open in a browser, where they operate correctly. They are not for a script.
+- **The snippets need a highlighter that is not the default one.** The client sets `hl.method=original`, because the default highlighter of this Solr gives an *empty* highlight block for each document on a phrase query. That is a correct response with no snippets, which reads as "the terms are not present" and not as a failure. If the snippets ever disappear for each document while the results continue to arrive, this is the cause. The matches are not absent.
+- **`get` has a low cost here, which is unusual.** The full OCR of a page is a field on the search document, so a download is one ordinary query and not a separate guarded endpoint. Nothing here is like Gallica, where the OCR costs one request for each page against a budget of four. Still use the snippets to judge a result, because to read a full page costs *context*, not requests.
+- One issue holds a few hundred kilobytes across all of its pages. Search the cached file with grep, or read parts of it. Never read it completely.
 
 ## Cost
 
-Rate-limited to **one request per second** with single concurrency, overridable with `DDB_MIN_REQUEST_INTERVAL`. DDB publishes no limit for this endpoint and none was observed in testing, which makes this the most permissive source in the set — three times looser than Gallica. Pacing is shared across every process, so parallel subagents share one budget: fanning out speeds up the reading, not the fetching.
+The client permits **one request each second**, with one request at a time. Change this with `DDB_MIN_REQUEST_INTERVAL`. DDB publishes no limit for this endpoint, and the tests observed none. Thus this is the most permissive source in the set — three times more permissive than Gallica. All processes share the rate limit, so parallel subagents share one budget. Many parallel subagents read the documents more quickly. They do not send the requests more quickly.
 
-Server-side query time, not rate limiting, is the real cost. Most queries answer in tens of milliseconds; a faceted sweep over the whole corpus takes seconds, and deep `start` offsets get slow. An unbounded range query on the fulltext field times out server-side and comes back as an error carried by HTTP 200 — the client surfaces it rather than reporting zero results.
+The real cost is the query time on the server, not the rate limit. Most queries answer in tens of milliseconds. A faceted search across the full corpus takes seconds, and a deep `start` offset becomes slow. A range query with no limits on the fulltext field times out on the server and comes back as an error inside an HTTP 200 response. The client reports this error. It does not report zero results.
 
-No API key is required. If one is ever needed, set `DDB_API_KEY` and the client will send it. Keys are free, need no institutional affiliation and have no approval step: register a DDB account, then generate the key at <https://www.deutsche-digitale-bibliothek.de/user/apikey>. Both pages need a real browser — they sit on the anti-bot-walled `www` host.
+No API key is necessary. If a key becomes necessary, set `DDB_API_KEY` and the client will send it. The keys are free, they need no institutional affiliation, and they need no approval. Register a DDB account, then make the key at <https://www.deutsche-digitale-bibliothek.de/user/apikey>. Both pages need a real browser, because they are on the `www` host with the anti-bot wall.
 
-**Over-querying gets you banned, and the ban outlasts the session.** This is a free public service; a sweep that looks thorough from here looks like scraping from theirs. If requests start failing or returning something that is not what you asked for, stop and say so rather than retrying into a longer ban.
+**Warning: Do not send too many requests. Too many requests cause the archive to block you, and the block continues after this session.**
+
+This is a free public service. A search that looks thorough to you looks like data collection to the archive operators. Sometimes the requests start to fail. Sometimes they give content that you did not ask for. If this occurs, stop. Tell the user. Do not send the request again, because a repeated request makes the block longer.
