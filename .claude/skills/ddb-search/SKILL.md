@@ -1,6 +1,6 @@
 ---
 name: ddb-search
-description: Search the Deutsches Zeitungsportal (Deutsche Digitale Bibliothek) with the `ddb` CLI. Use it for German-language newspapers from 1850 to 1950 — the German press coverage of performers on tour, and all material published in Germany.
+description: Search the Deutsches Zeitungsportal (Deutsche Digitale Bibliothek) with the `ddb` CLI. Use it for German-language newspapers from 1850 to 1950: the German press coverage of performers on tour, and all material published in Germany.
 ---
 
 # Deutsches Zeitungsportal (DDB)
@@ -22,7 +22,7 @@ The filters for `search` and `facets` are `--from-year`, `--to-year`, `--title T
 
 **There is no `--sort` option.** The results come back in order of relevance. See the risks below.
 
-## `facets` — how to find a value, and how to describe a result set
+## `facets`: how to find a value, and how to describe a result set
 
 `ddb facets place|provider|language|title` lists the values that a filter can take, with page counts, and it puts the largest counts first. It does two different tasks.
 
@@ -58,7 +58,7 @@ Use `ddb snippets` when you already have an identifier and want to know where a 
 The client sends the query to Solr with almost no change, so the full syntax is available:
 
 - `"quoted phrases"` match exactly
-- `AND`, `OR`, `NOT` — uppercase, as usual
+- `AND`, `OR`, `NOT`, in uppercase as usual
 - Parentheses group the terms: `(Hanussen OR Steinschneider) AND Hellseher`
 - `Hellseh*` is a wildcard
 - `Hanussen~1` is a fuzzy match, for OCR errors
@@ -82,7 +82,7 @@ Keep the count honest about *what* it counts: pages, not articles and not storie
 
 There are 20 results on each page by default, and up to 100 with `--rows`. `--pages all` collects each page to the end.
 
-The totals are real, so the decision is simple: is the number small enough to read? A few hundred pages is a search that you can complete. Tens of thousands means that you must make the query more narrow first — with a date range, with a title, or with proximity in place of `AND`.
+The totals are real, so the decision is simple: is the number small enough to read? A few hundred pages is a search that you can complete. Tens of thousands means that you must make the query more narrow first: with a date range, with a title, or with proximity in place of `AND`.
 
 ## False positives to expect
 
@@ -108,7 +108,7 @@ The totals are real, so the decision is simple: is the number small enough to re
 
 ## Cost
 
-The client permits **one request each second**, with one request at a time. Change this with `DDB_MIN_REQUEST_INTERVAL`. DDB publishes no limit for this endpoint, and the tests observed none. Thus this is the most permissive source in the set — three times more permissive than Gallica. All processes share the rate limit, so parallel subagents share one budget. Many parallel subagents read the documents more quickly. They do not send the requests more quickly.
+The client permits **one request each second**, with one request at a time. Change this with `DDB_MIN_REQUEST_INTERVAL`. DDB publishes no limit for this endpoint, and the tests observed none. Thus this is the most permissive source in the set, three times more permissive than Gallica. All processes share the rate limit, so parallel subagents share one budget. Many parallel subagents read the documents more quickly. They do not send the requests more quickly.
 
 The real cost is the query time on the server, not the rate limit. Most queries answer in tens of milliseconds. A faceted search across the full corpus takes seconds, and a deep `start` offset becomes slow. A range query with no limits on the fulltext field times out on the server and comes back as an error inside an HTTP 200 response. The client reports this error. It does not report zero results.
 
